@@ -1,89 +1,131 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import hashlib
-import mysql.connector
 import os
+import mysql.connector
+from dotenv import load_dotenv
+import csv
+import io
+import hashlib
+import uuid
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-# MySQL Connection
+# MySQL connection
 db = mysql.connector.connect(
-    host=os.getenv("DB_HOST", "localhost"),
-    user=os.getenv("DB_USER", "root"),
-    password=os.getenv("DB_PASSWORD", ""),
-    database=os.getenv("DB_NAME", "loan_crm")
+    host=os.getenv("DB_HOST"),
+    user=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    database=os.getenv("DB_NAME")
 )
-cursor = db.cursor(dictionary=True)
+cursor = db.cursor()
 
 # Create table if not exists
 cursor.execute("""
-CREATE TABLE IF NOT EXISTS applications (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    customer_id VARCHAR(20),
+CREATE TABLE IF NOT EXISTS customers (
+    id VARCHAR(100) PRIMARY KEY,
     full_name VARCHAR(100),
-    pan VARCHAR(20),
+    pan VARCHAR(20) UNIQUE,
     dob VARCHAR(20),
-    phone VARCHAR(15),
-    loan_amount FLOAT,
+    phone VARCHAR(20),
+    loan_amount VARCHAR(20),
     cibil_score INT,
     status VARCHAR(20)
 )
 """)
 db.commit()
 
-def generate_cibil_score(pan, dob):
-    key = pan.strip().upper() + dob.strip()
-    hashed = hashlib.sha256(key.encode()).hexdigest()
-    numeric = int(hashed[:8], 16)
-    return 300 + (numeric % 601)  # Range 300–900
-
-def generate_customer_id(pan, dob):
-    short = hashlib.md5((pan + dob).encode()).hexdigest()[:6]
-    return f"CUST{short.upper()}"
+# Fixed CIBIL generator based on PAN
+def generate_fixed_cibil(pan):
+    hash_val = int(hashlib.sha256(pan.encode()).hexdigest(), 16)
+    return 300 + (hash_val % 601)  # 300 to 900
 
 @app.route('/apply', methods=['POST'])
 def apply():
     data = request.json
-    full_name = data.get('full_name')
     pan = data.get('pan')
-    dob = data.get('dob')
-    phone = data.get('phone')
-    loan_amount = float(data.get('loan_amount'))
-
-    cibil_score = generate_cibil_score(pan, dob)
-    customer_id = generate_customer_id(pan, dob)
-    status = "Approved" if cibil_score >= 750 else "Rejected"
-
-    # Insert into DB (prevent duplicate PAN + DOB)
-    cursor.execute("""
-        SELECT * FROM applications WHERE pan=%s AND dob=%s
-    """, (pan, dob))
+    
+    # Check for existing PAN
+    cursor.execute("SELECT * FROM customers WHERE pan = %s", (pan,))
     existing = cursor.fetchone()
     if existing:
-        return jsonify({"message": "Duplicate application", "status": existing["status"], "cibil_score": existing["cibil_score"]})
+        return jsonify({"message": "Customer already exists", "status": existing[6], "cibil_score": existing[5]})
+
+    # Assign fixed CIBIL
+    cibil = generate_fixed_cibil(pan)
+    status = "Approved" if cibil >= 750 else "Rejected"
+    customer_id = str(uuid.uuid4())
 
     cursor.execute("""
-        INSERT INTO applications (customer_id, full_name, pan, dob, phone, loan_amount, cibil_score, status)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (customer_id, full_name, pan, dob, phone, loan_amount, cibil_score, status))
+    INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        customer_id,
+        data.get('full_name'),
+        pan,
+        data.get('dob'),
+        data.get('phone'),
+        data.get('loan_amount'),
+        cibil,
+        status
+    ))
     db.commit()
 
-    return jsonify({
-        "customer_id": customer_id,
-        "status": status,
-        "cibil_score": cibil_score
-    })
+    return jsonify({"customer_id": customer_id, "status": status, "cibil_score": cibil})
 
 @app.route('/allApplications', methods=['GET'])
 def get_all():
-    cursor.execute("SELECT * FROM applications")
-    results = cursor.fetchall()
-    return jsonify(results)
+    cursor.execute("SELECT * FROM customers")
+    rows = cursor.fetchall()
+    keys = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status"]
+    return jsonify([dict(zip(keys, row)) for row in rows])
+
+@app.route('/upload_csv', methods=['POST'])
+def upload_csv():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+
+    file = request.files['file']
+    stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+    reader = csv.DictReader(stream)
+
+    added, skipped = 0, 0
+    for row in reader:
+        pan = row.get("pan")
+        cursor.execute("SELECT * FROM customers WHERE pan = %s", (pan,))
+        if cursor.fetchone():
+            skipped += 1
+            continue
+
+        cibil = generate_fixed_cibil(pan)
+        status = "Approved" if cibil >= 750 else "Rejected"
+        customer_id = str(uuid.uuid4())
+
+        cursor.execute("""
+        INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            customer_id,
+            row.get('full_name'),
+            pan,
+            row.get('dob'),
+            row.get('phone'),
+            row.get('loan_amount'),
+            cibil,
+            status
+        ))
+        added += 1
+
+    db.commit()
+    return jsonify({"added": added, "skipped_duplicates": skipped})
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
 
 
 
