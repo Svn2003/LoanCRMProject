@@ -8,6 +8,10 @@ CORS(app)  # Allow all origins, handles OPTIONS preflight automatically
 
 applications = []
 
+@app.route('/')
+def index():
+    return "Loan CRM backend is running!"
+
 @app.route('/apply', methods=['POST'])
 def apply():
     data = request.json
