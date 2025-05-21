@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: loan-crm-app
+    name: LoanCRMProject
     env: python
     buildCommand: ""
     startCommand: "python app.py"
