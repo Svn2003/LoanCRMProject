@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, render_template, jsonify
 from flask_cors import CORS
 import os
 import psycopg2
@@ -61,14 +61,18 @@ def fix_phone(phone):
     return digits[-10:] if len(digits) >= 10 else None
 
 @app.route('/')
-def index():
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute('SELECT version();')
-    db_version = cur.fetchone()
-    cur.close()
-    conn.close()
-    return f'Connected to: {db_version}'
+def home():
+    return render_template('index.html')
+
+# @app.route('/')
+# def index():
+#     conn = get_db_connection()
+#     cur = conn.cursor()
+#     cur.execute('SELECT version();')
+#     db_version = cur.fetchone()
+#     cur.close()
+#     conn.close()
+#     return f'Connected to: {db_version}'
 
 
 @app.route('/apply', methods=['POST'])
