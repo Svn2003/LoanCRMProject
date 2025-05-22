@@ -46,7 +46,7 @@ with get_db_connection() as conn:
             loan_amount VARCHAR(20),
             cibil_score INT,
             status VARCHAR(20),
-            processing_notes VARCHAR(255)  -- ✅ new column
+            # processing_notes VARCHAR(255)  -- ✅ new column
         )
         """)
         conn.commit()
@@ -109,13 +109,13 @@ def apply():
         cibil = generate_fixed_cibil(pan)
         status = "Approved" if cibil >= 750 else "Rejected"
         customer_id = str(uuid.uuid4())
-        processing_notes = "Added successfully"  # ✅
+        # processing_notes = "Added successfully"  # ✅
 
         cursor.execute("""
-        INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status, processing_notes)
+        INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            customer_id, full_name, pan, dob, phone, loan_amount, cibil, status, processing_notes  # ✅
+            customer_id, full_name, pan, dob, phone, loan_amount, cibil, status # ✅
         ))
 
         conn.commit()
@@ -127,7 +127,7 @@ def apply():
             "customer_id": customer_id,
             "cibil_score": cibil,
             "loan_status": status,
-            "processing_notes": processing_notes  # ✅
+            # "processing_notes": processing_notes  # ✅
         })
     except Exception as e:
         import traceback
@@ -140,7 +140,7 @@ def get_all():
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM customers")
     rows = cursor.fetchall()
-    keys = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status", "processing_notes"]  # ✅
+    keys = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status"]  # ✅
     result = [dict(zip(keys, row)) for row in rows]
     cursor.close()
     conn.close()
@@ -156,7 +156,7 @@ def get_customer_by_id(customer_id):
     conn.close()
 
     if row:
-        keys = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status", "processing_notes"]  # ✅
+        keys = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status"]  # ✅
         return jsonify(dict(zip(keys, row)))
     else:
         return jsonify({"message": "Customer not found"}), 404
@@ -208,7 +208,7 @@ def upload_csv():
         processing_notes = "Added via CSV"  # ✅
 
         cursor.execute("""
-        INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status, processing_notes)
+        INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             customer_id,
@@ -219,7 +219,7 @@ def upload_csv():
             loan_amount,
             cibil,
             status,
-            processing_notes  # ✅
+            # processing_notes  # ✅
         ))
         added += 1
 
@@ -243,7 +243,7 @@ def download_cleaned_csv():
     cursor.close()
     conn.close()
 
-    headers = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status", "processing_notes"]  # ✅
+    headers = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status"]  # ✅
 
     output = io.StringIO()
     writer = csv.writer(output)
