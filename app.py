@@ -72,74 +72,6 @@ def index():
     conn.close()
     return f'Connected to: {db_version}'
 
-# @app.route('/apply', methods=['POST'])
-# def apply():
-#     try:
-#         data = request.json
-
-#         # Basic validation
-#         full_name = str(data.get('full_name', "")).strip()
-#         pan = str(data.get('pan', "")).strip().upper()
-#         dob = str(data.get('dob', "")).strip()
-#         phone = fix_phone(str(data.get('phone', "")))
-#         loan_amount = str(data.get('loan_amount', "")).strip()
-
-#         # full_name = data.get('full_name', "").strip()
-#         # pan = data.get('pan', "").strip().upper()
-#         # dob = data.get('dob', "").strip()
-#         # phone = fix_phone(data.get('phone', ""))
-#         # loan_amount = data.get('loan_amount', "").strip()
-
-#         if not phone:
-#             return jsonify({"status": "skipped", "reason": "Invalid phone number"}), 400
-
-#         if not (full_name and pan and dob and phone and loan_amount):
-#             return jsonify({"status": "skipped", "reason": "Missing essential fields"}), 400
-
-#         conn = get_db_connection()
-#         cursor = conn.cursor()
-#         cursor.execute("SELECT * FROM customers WHERE pan = %s", (pan,))
-#         existing = cursor.fetchone()
-
-#         if existing:
-#             cursor.close()
-#             conn.close()
-#             return jsonify({
-#                 "status": "duplicate",
-#                 "reason": "Customer already exists",
-#                 "existing_customer_id": existing[0],
-#                 "cibil_score": existing[6],
-#                 "loan_status": existing[7]
-#             })
-
-#         cibil = generate_fixed_cibil(pan)
-#         status = "Approved" if cibil >= 750 else "Rejected"
-#         customer_id = str(uuid.uuid4())
-
-#         cursor.execute("""
-#         INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status)
-#         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-#         """, (
-#             customer_id, full_name, pan, dob, phone, loan_amount, cibil, status
-#         ))
-
-#         conn.commit()
-#         cursor.close()
-#         conn.close()
-
-#         return jsonify({
-#             "status": "added",
-#             "customer_id": customer_id,
-#             "cibil_score": cibil,
-#             "loan_status": status
-#         })
-#     except Exception as e:
-#         import traceback
-#         print("ERROR:", traceback.format_exc())
-#         return jsonify({"error": str(e)}), 500
-
-
-
 @app.route('/apply', methods=['POST'])
 def apply():
     try:
@@ -170,12 +102,8 @@ def apply():
                 "status": "duplicate",
                 "reason": "Customer already exists",
                 "existing_customer_id": existing[0],
-                "customer_id": customer_id,
-                "cibil_score": cibil,
-                "loan_status": status
-
-                # "cibil_score": existing[6],
-                # "loan_status": existing[7]
+                "cibil_score": existing[6],
+                "loan_status": existing[7]
             })
 
         cibil = generate_fixed_cibil(pan)
