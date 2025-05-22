@@ -121,6 +121,24 @@ def get_all():
     conn.close()
     return jsonify(result)
 
+@app.route('/get_customer/<customer_id>', methods=['GET'])
+def get_customer_by_id(customer_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM customers WHERE id = %s", (customer_id,))
+    row = cursor.fetchone()
+
+    cursor.close()
+    conn.close()
+
+    if row:
+        keys = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status"]
+        return jsonify(dict(zip(keys, row)))
+    else:
+        return jsonify({"message": "Customer not found"}), 404
+
+
 @app.route('/upload_csv', methods=['POST'])
 def upload_csv():
     if 'file' not in request.files:
