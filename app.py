@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask,render_template, request, jsonify
 from flask_cors import CORS
 import os
 import psycopg2
@@ -63,6 +63,14 @@ def fix_phone(phone):
     return digits[-10:] if len(digits) >= 10 else None
 
 @app.route('/')
+def home():
+    return render_template('loan_form.html')  # Opens the form directly
+
+@app.route('/form')
+def form():
+    return render_template('loan_form.html')  # Alternative route to access form
+
+@app.route('/index')  # Optional: Keep this for database check
 def index():
     conn = get_db_connection()
     cur = conn.cursor()
@@ -77,7 +85,6 @@ def apply():
     try:
         data = request.json
 
-        # Basic validation
         full_name = str(data.get('full_name', "")).strip()
         pan = str(data.get('pan', "")).strip().upper()
         dob = str(data.get('dob', "")).strip()
@@ -109,13 +116,13 @@ def apply():
         cibil = generate_fixed_cibil(pan)
         status = "Approved" if cibil >= 750 else "Rejected"
         customer_id = str(uuid.uuid4())
-        processing_notes = "Added successfully"  # ✅
+        processing_notes = "Added successfully"
 
         cursor.execute("""
-        INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status, processing_notes)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status, processing_notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
-            customer_id, full_name, pan, dob, phone, loan_amount, cibil, status, processing_notes  # ✅
+            customer_id, full_name, pan, dob, phone, loan_amount, cibil, status, processing_notes
         ))
 
         conn.commit()
@@ -127,12 +134,86 @@ def apply():
             "customer_id": customer_id,
             "cibil_score": cibil,
             "loan_status": status,
-            "processing_notes": processing_notes  # ✅
+            "processing_notes": processing_notes
         })
+
     except Exception as e:
         import traceback
         print("ERROR:", traceback.format_exc())
         return jsonify({"error": str(e)}), 500
+
+
+# @app.route('/')
+# def index():
+#     conn = get_db_connection()
+#     cur = conn.cursor()
+#     cur.execute('SELECT version();')
+#     db_version = cur.fetchone()
+#     cur.close()
+#     conn.close()
+#     return f'Connected to: {db_version}'
+
+# @app.route('/apply', methods=['POST'])
+# def apply():
+#     try:
+#         data = request.json
+
+#         # Basic validation
+#         full_name = str(data.get('full_name', "")).strip()
+#         pan = str(data.get('pan', "")).strip().upper()
+#         dob = str(data.get('dob', "")).strip()
+#         phone = fix_phone(str(data.get('phone', "")))
+#         loan_amount = str(data.get('loan_amount', "")).strip()
+
+#         if not phone:
+#             return jsonify({"status": "skipped", "reason": "Invalid phone number"}), 400
+
+#         if not (full_name and pan and dob and phone and loan_amount):
+#             return jsonify({"status": "skipped", "reason": "Missing essential fields"}), 400
+
+#         conn = get_db_connection()
+#         cursor = conn.cursor()
+#         cursor.execute("SELECT * FROM customers WHERE pan = %s", (pan,))
+#         existing = cursor.fetchone()
+
+#         if existing:
+#             cursor.close()
+#             conn.close()
+#             return jsonify({
+#                 "status": "duplicate",
+#                 "reason": "Customer already exists",
+#                 "existing_customer_id": existing[0],
+#                 "cibil_score": existing[6],
+#                 "loan_status": existing[7]
+#             })
+
+#         cibil = generate_fixed_cibil(pan)
+#         status = "Approved" if cibil >= 750 else "Rejected"
+#         customer_id = str(uuid.uuid4())
+#         processing_notes = "Added successfully"  # ✅
+
+#         cursor.execute("""
+#         INSERT INTO customers (id, full_name, pan, dob, phone, loan_amount, cibil_score, status, processing_notes)
+#         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+#         """, (
+#             customer_id, full_name, pan, dob, phone, loan_amount, cibil, status, processing_notes  # ✅
+#         ))
+
+#         conn.commit()
+#         cursor.close()
+#         conn.close()
+
+#         return jsonify({
+#             "status": "added",
+#             "customer_id": customer_id,
+#             "cibil_score": cibil,
+#             "loan_status": status,
+#             "processing_notes": processing_notes  # ✅
+#         })
+#     except Exception as e:
+#         import traceback
+#         print("ERROR:", traceback.format_exc())
+#         return jsonify({"error": str(e)}), 500
 
 @app.route('/allApplications', methods=['GET'])
 def get_all():
@@ -265,6 +346,7 @@ def download_cleaned_csv():
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+    app.run(debug=True)
 
 
 
