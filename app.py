@@ -77,11 +77,17 @@ def apply():
         data = request.json
 
         # Basic validation
-        full_name = data.get('full_name', "").strip()
-        pan = data.get('pan', "").strip().upper()
-        dob = data.get('dob', "").strip()
-        phone = fix_phone(data.get('phone', ""))
-        loan_amount = data.get('loan_amount', "").strip()
+        full_name = str(data.get('full_name', "")).strip()
+        pan = str(data.get('pan', "")).strip().upper()
+        dob = str(data.get('dob', "")).strip()
+        phone = fix_phone(str(data.get('phone', "")))
+        loan_amount = str(data.get('loan_amount', "")).strip()
+
+        # full_name = data.get('full_name', "").strip()
+        # pan = data.get('pan', "").strip().upper()
+        # dob = data.get('dob', "").strip()
+        # phone = fix_phone(data.get('phone', ""))
+        # loan_amount = data.get('loan_amount', "").strip()
 
         if not phone:
             return jsonify({"status": "skipped", "reason": "Invalid phone number"}), 400
