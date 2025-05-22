@@ -124,18 +124,42 @@ def upload_csv():
     stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
     reader = csv.DictReader(stream)
 
-    added, skipped = 0, 0
+    added = 0
+    skipped_duplicates = 0
+    skipped_missing = 0
+
+    skipped_entries = []  # To log skipped rows
 
     conn = get_db_connection()
     cursor = conn.cursor()
 
     for row in reader:
-        pan = row.get("pan")
-        cursor.execute("SELECT * FROM customers WHERE pan = %s", (pan,))
-        if cursor.fetchone():
-            skipped += 1
+        full_name = row.get("full_name", "").strip()
+        pan = row.get("pan", "").strip().upper()
+        dob = row.get("dob", "").strip()
+        phone = ''.join(filter(str.isdigit, row.get("phone", "")))  # Remove dashes, spaces etc.
+        loan_amount = row.get("loan_amount", "").strip()
+
+        # Check if phone is valid (at least 10 digits)
+        if len(phone) != 10:
+            skipped_missing += 1
+            skipped_entries.append({**row, "reason": "Invalid phone number"})
             continue
 
+        # Check if required fields are present
+        if not (full_name and pan and dob and phone and loan_amount):
+            skipped_missing += 1
+            skipped_entries.append({**row, "reason": "Missing essential fields"})
+            continue
+
+        # Check for duplicates
+        cursor.execute("SELECT * FROM customers WHERE pan = %s", (pan,))
+        if cursor.fetchone():
+            skipped_duplicates += 1
+            skipped_entries.append({**row, "reason": "Duplicate PAN"})
+            continue
+
+        # Generate CIBIL and status
         cibil = generate_fixed_cibil(pan)
         status = "Approved" if cibil >= 750 else "Rejected"
         customer_id = str(uuid.uuid4())
@@ -145,11 +169,11 @@ def upload_csv():
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             customer_id,
-            row.get('full_name'),
+            full_name,
             pan,
-            row.get('dob'),
-            row.get('phone'),
-            row.get('loan_amount'),
+            dob,
+            phone,
+            loan_amount,
             cibil,
             status
         ))
@@ -158,7 +182,46 @@ def upload_csv():
     conn.commit()
     cursor.close()
     conn.close()
-    return jsonify({"added": added, "skipped_duplicates": skipped})
+
+    return jsonify({
+        "added": added,
+        "skipped_duplicates": skipped_duplicates,
+        "skipped_missing": skipped_missing,
+        "skipped_entries": skipped_entries
+    })
+
+
+@app.route('/download_cleaned_csv', methods=['GET'])
+def download_cleaned_csv():
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM customers")
+    rows = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    # Field headers
+    headers = ["id", "full_name", "pan", "dob", "phone", "loan_amount", "cibil_score", "status"]
+
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(headers)
+    for row in rows:
+        writer.writerow(row)
+
+    output.seek(0)
+
+    return (
+        output.getvalue(),
+        200,
+        {
+            'Content-Type': 'text/csv',
+            'Content-Disposition': 'attachment; filename="cleaned_loan_data.csv"',
+        }
+    )
+
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5000))
