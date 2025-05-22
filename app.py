@@ -45,7 +45,7 @@ with get_db_connection() as conn:
             phone VARCHAR(20),
             loan_amount VARCHAR(20),
             cibil_score INT,
-            status VARCHAR(20),
+            status VARCHAR(20)
         )
         """)
         conn.commit()
