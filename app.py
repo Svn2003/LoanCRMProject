@@ -46,7 +46,6 @@ with get_db_connection() as conn:
             loan_amount VARCHAR(20),
             cibil_score INT,
             status VARCHAR(20),
-            # processing_notes VARCHAR(255)  -- ✅ new column
         )
         """)
         conn.commit()
